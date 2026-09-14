@@ -59,5 +59,8 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Build plugin
+        run: make plugin-package
+
       - name: Run e2e tests
         run: make e2e

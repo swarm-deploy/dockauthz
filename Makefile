@@ -40,4 +40,4 @@ lint:
 	golangci-lint run
 
 e2e:
-	./e2e/run.sh
+	$(GO) test -v ./e2e
