@@ -1,0 +1,84 @@
+authentication:
+  unidentified: allow
+
+telemetry:
+  serviceName: dockauthz
+  resource:
+    environment: production
+  otlp:
+    endpoint: infra-otel-collector:4317
+    protocol: grpc
+    insecure: true
+  traces:
+    enabled: true
+    sampleRatio: 1.0
+  metrics:
+    enabled: true
+    exportInterval: 15s
+
+clients:
+  admin:
+    identity:
+      certificate:
+        commonName: docker-admin
+    permissions:
+      "*":
+        "*": {}
+  cloud-secrets:
+    identity:
+      certificate:
+        commonName: cloud-secrets
+    permissions:
+      service:
+        list: {}
+        inspect: {}
+        update:
+          mutation:
+            only: [container.secrets]
+      secret:
+        list: {}
+        inspect: {}
+        create:
+          request:
+            labels:
+              org.cloud-secrets.managed: "true"
+        delete:
+          selector:
+            labels:
+              org.cloud-secrets.managed: "true"
+  ci:
+    identity:
+      certificate:
+        commonName: github-ci
+    permissions:
+      service:
+        list: {}
+        inspect: {}
+        update:
+          mutation:
+            only: [container.image]
+  autoscaler:
+    identity:
+      certificate:
+        commonName: autoscaler
+    permissions:
+      service:
+        list: {}
+        inspect: {}
+        update:
+          mutation:
+            only: [replicas]
+  monitoring:
+    identity:
+      certificate:
+        commonName: monitoring
+    permissions:
+      service:
+        list: {}
+        inspect: {}
+      node:
+        list: {}
+        inspect: {}
+      task:
+        list: {}
+        inspect: {}
