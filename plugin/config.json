@@ -5,7 +5,7 @@
   "Interface": {"Types": ["docker.authz/1.0"], "Socket": "dockauthz.sock"},
   "Network": {"Type": "bridge"},
   "Mounts": [
-    {"Name": "config", "Description": "Root-owned authorization configuration", "Source": "/etc/dockauthz/config.yaml", "Destination": "/etc/dockauthz/config.yaml", "Type": "bind", "Options": ["rbind", "ro"], "Settable": ["source"]},
+    {"Name": "config", "Description": "Root-owned authorization configuration", "Source": "/etc/dockauthz/config.yaml", "Destination": "/etc/dockauthz/config.yaml", "Type": "bind", "Options": ["rbind", "ro"]},
     {"Name": "docker-socket", "Description": "Docker state lookup", "Source": "/var/run/docker.sock", "Destination": "/var/run/docker.sock", "Type": "bind", "Options": ["rbind", "ro"]}
   ],
   "Linux": {"Capabilities": [], "AllowAllDevices": false, "Devices": []},

@@ -58,6 +58,7 @@ func TestInspect(t *testing.T) {
 		{"missing ID", "service", `{"Spec":{}}`, 200, true},
 		{"unknown spec field", "service", `{"ID":"abc","Spec":{"NewSecuritySetting":true}}`, 200, true},
 		{"unknown nested field", "service", `{"ID":"abc","Spec":{"TaskTemplate":{"ContainerSpec":{"Unknown":true}}}}`, 200, true},
+		{"unknown task field", "task", `{"ID":"abc","Labels":{"managed":"true"},"Spec":{},"Unknown":true}`, 200, true},
 		{"trailing JSON", "service", `{"ID":"abc","Spec":{}} {}`, 200, true},
 		{"redirect", "service", ``, 302, true},
 	} {

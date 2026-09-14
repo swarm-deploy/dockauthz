@@ -153,8 +153,8 @@ func (c *Client) Inspect(ctx context.Context, op operation.Operation) (snapshot 
 	case operation.ResourceTask:
 		// Task labels belong to Annotations on the task, not TaskSpec.
 		var task swarm.Task
-		if json.Unmarshal(body, &task) != nil {
-			return Snapshot{}, errors.New("invalid task response")
+		if decodeErr := specjson.Decode(body, &task); decodeErr != nil {
+			return Snapshot{}, decodeErr
 		}
 		snapshot.Labels = task.Labels
 	case operation.ResourceUnknown:
