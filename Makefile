@@ -4,6 +4,7 @@ GOARCH ?= $(shell $(GO) env GOARCH)
 PLUGIN_NAME ?= dockauthz:dev
 CA_BUNDLE ?= $(firstword $(wildcard /etc/ssl/certs/ca-certificates.crt /etc/ssl/cert.pem))
 LDFLAGS = -s -w -X main.version=$(VERSION)
+TEST_PACKAGES = $(shell $(GO) list ./... | grep -v '/e2e$$')
 
 .PHONY: build test vet generate plugin-rootfs plugin-package plugin-create e2e
 
@@ -13,7 +14,7 @@ build:
 	$(GO) build -trimpath -o bin/dockauthz-cert ./cmd/dockauthz-cert
 
 test:
-	$(GO) test ./...
+	$(GO) test $(TEST_PACKAGES)
 
 vet:
 	$(GO) vet ./...
