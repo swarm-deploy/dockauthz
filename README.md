@@ -47,7 +47,7 @@ make plugin-create PLUGIN_NAME=dockauthz:dev
 docker plugin enable dockauthz:dev
 ```
 
-`plugin-create` creates a local managed plugin without publishing it. To use a previously generated build context, extract its archive and run `docker plugin create dockauthz:dev ./extracted-context`. Merge the following into `/etc/docker/daemon.json`, alongside the mTLS settings from [docs/certificates.md](docs/certificates.md):
+`plugin-create` creates a local managed plugin without publishing it. To use a previously generated build context, extract its archive and run `docker plugin create dockauthz:dev ./extracted-context`. For the managed plugin, the configuration must live on the host at the fixed path `/etc/dockauthz/config.yaml` and is mounted into the plugin read-only at the same path. Merge the following into `/etc/docker/daemon.json`, alongside the mTLS settings from [docs/certificates.md](docs/certificates.md):
 
 ```json
 {"authorization-plugins": ["dockauthz:dev"]}
