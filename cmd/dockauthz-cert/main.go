@@ -4,8 +4,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/swarm-deploy/dockauthz/internal/pki"
 	"os"
+
+	"github.com/swarm-deploy/dockauthz/internal/pki"
 )
 
 func main() {

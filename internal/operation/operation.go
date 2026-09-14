@@ -51,11 +51,17 @@ var identifier = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
 func Supports(resource Resource, action Action) bool {
 	switch resource {
 	case ResourceService:
-		return action == ActionList || action == ActionInspect || action == ActionCreate || action == ActionUpdate || action == ActionDelete
+		return action == ActionList ||
+			action == ActionInspect ||
+			action == ActionCreate ||
+			action == ActionUpdate ||
+			action == ActionDelete
 	case ResourceSecret:
 		return action == ActionList || action == ActionInspect || action == ActionCreate || action == ActionDelete
 	case ResourceTask, ResourceNode:
 		return action == ActionList || action == ActionInspect
+	case ResourceUnknown:
+		return false
 	}
 	return false
 }
@@ -64,7 +70,14 @@ func Supports(resource Resource, action Action) bool {
 func Resolve(method, uri string) (Operation, error) {
 	bad := errors.New("unknown or invalid Docker operation")
 	u, err := url.ParseRequestURI(uri)
-	if err != nil || !strings.HasPrefix(uri, "/") || strings.HasPrefix(uri, "//") || u.IsAbs() || u.Host != "" || u.Fragment != "" || strings.ContainsAny(uri, "#\\\r\n\t ") || strings.Contains(u.EscapedPath(), "%") {
+	if err != nil ||
+		!strings.HasPrefix(uri, "/") ||
+		strings.HasPrefix(uri, "//") ||
+		u.IsAbs() ||
+		u.Host != "" ||
+		u.Fragment != "" ||
+		strings.ContainsAny(uri, "#\\\r\n\t ") ||
+		strings.Contains(u.EscapedPath(), "%") {
 		return Operation{}, bad
 	}
 	query, err := url.ParseQuery(u.RawQuery)
@@ -106,7 +119,8 @@ func Resolve(method, uri string) (Operation, error) {
 	default:
 		return Operation{}, bad
 	}
-	if !Supports(op.Resource, op.Action) || (op.Action != ActionList && op.Action != ActionCreate && !identifier.MatchString(op.ID)) {
+	if !Supports(op.Resource, op.Action) ||
+		(op.Action != ActionList && op.Action != ActionCreate && !identifier.MatchString(op.ID)) {
 		return Operation{}, bad
 	}
 	return op, nil

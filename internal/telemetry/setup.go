@@ -34,6 +34,11 @@ type Runtime struct {
 	metrics  *sdkmetric.MeterProvider
 }
 
+const (
+	otelErrorLogInterval = 60
+	exportTimeout        = 3 * time.Second
+)
+
 // Setup validates syntax locally. Exporters connect asynchronously; collector
 // failures neither block startup nor change decisions. Global setup runs once.
 func Setup(ctx context.Context, cfg *config.Telemetry, version string) (*Runtime, error) {
@@ -42,7 +47,7 @@ func Setup(ctx context.Context, cfg *config.Telemetry, version string) (*Runtime
 	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(error) {
 		now := time.Now().Unix()
 		previous := last.Load()
-		if now-previous >= 60 && last.CompareAndSwap(previous, now) {
+		if now-previous >= otelErrorLogInterval && last.CompareAndSwap(previous, now) {
 			// Exporter errors may contain headers, endpoints or response bodies.
 			slog.ErrorContext(context.Background(), "telemetry export failed", "type", "telemetry")
 		}
@@ -54,7 +59,10 @@ func Setup(ctx context.Context, cfg *config.Telemetry, version string) (*Runtime
 		if err := cfg.Validate(); err != nil {
 			return nil, err
 		}
-		attrs := []attribute.KeyValue{attribute.String("service.name", cfg.ServiceName), attribute.String("service.version", version)}
+		attrs := []attribute.KeyValue{
+			attribute.String("service.name", cfg.ServiceName),
+			attribute.String("service.version", version),
+		}
 		for k, v := range cfg.Resource {
 			attrs = append(attrs, attribute.String(k, v))
 		}
@@ -64,7 +72,13 @@ func Setup(ctx context.Context, cfg *config.Telemetry, version string) (*Runtime
 			if err != nil {
 				otel.Handle(errors.New("trace exporter initialization failed"))
 			} else {
-				r.traces = sdktrace.NewTracerProvider(sdktrace.WithResource(res), sdktrace.WithSampler(sdktrace.ParentBased(sdktrace.TraceIDRatioBased(*cfg.Traces.SampleRatio))), sdktrace.WithBatcher(exporter, sdktrace.WithExportTimeout(3*time.Second)))
+				r.traces = sdktrace.NewTracerProvider(
+					sdktrace.WithResource(res),
+					sdktrace.WithSampler(sdktrace.ParentBased(
+						sdktrace.TraceIDRatioBased(*cfg.Traces.SampleRatio),
+					)),
+					sdktrace.WithBatcher(exporter, sdktrace.WithExportTimeout(exportTimeout)),
+				)
 				tp = r.traces
 			}
 		}
@@ -74,7 +88,14 @@ func Setup(ctx context.Context, cfg *config.Telemetry, version string) (*Runtime
 				otel.Handle(errors.New("metric exporter initialization failed"))
 			} else {
 				interval, _ := time.ParseDuration(cfg.Metrics.ExportInterval)
-				r.metrics = sdkmetric.NewMeterProvider(sdkmetric.WithResource(res), sdkmetric.WithReader(sdkmetric.NewPeriodicReader(exporter, sdkmetric.WithInterval(interval), sdkmetric.WithTimeout(3*time.Second))))
+				r.metrics = sdkmetric.NewMeterProvider(
+					sdkmetric.WithResource(res),
+					sdkmetric.WithReader(sdkmetric.NewPeriodicReader(
+						exporter,
+						sdkmetric.WithInterval(interval),
+						sdkmetric.WithTimeout(exportTimeout),
+					)),
+				)
 				mp = r.metrics
 			}
 		}
@@ -88,7 +109,12 @@ func Setup(ctx context.Context, cfg *config.Telemetry, version string) (*Runtime
 func traceExporter(ctx context.Context, c config.OTLP) (sdktrace.SpanExporter, error) {
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
 	if c.Protocol == "grpc" {
-		opts := []tg.Option{tg.WithEndpoint(c.Endpoint), tg.WithHeaders(c.Headers), tg.WithTimeout(3 * time.Second), tg.WithTLSCredentials(credentials.NewTLS(tlsConfig))}
+		opts := []tg.Option{
+			tg.WithEndpoint(c.Endpoint),
+			tg.WithHeaders(c.Headers),
+			tg.WithTimeout(exportTimeout),
+			tg.WithTLSCredentials(credentials.NewTLS(tlsConfig)),
+		}
 		if c.Insecure {
 			opts = append(opts, tg.WithTLSCredentials(insecure.NewCredentials()))
 		}
@@ -98,7 +124,11 @@ func traceExporter(ctx context.Context, c config.OTLP) (sdktrace.SpanExporter, e
 	if c.Insecure {
 		scheme = "http://"
 	}
-	opts := []th.Option{th.WithEndpointURL(scheme + c.Endpoint + "/v1/traces"), th.WithHeaders(c.Headers), th.WithTimeout(3 * time.Second)}
+	opts := []th.Option{
+		th.WithEndpointURL(scheme + c.Endpoint + "/v1/traces"),
+		th.WithHeaders(c.Headers),
+		th.WithTimeout(exportTimeout),
+	}
 	if !c.Insecure {
 		opts = append(opts, th.WithTLSClientConfig(tlsConfig))
 	}
@@ -108,7 +138,12 @@ func traceExporter(ctx context.Context, c config.OTLP) (sdktrace.SpanExporter, e
 func metricExporter(ctx context.Context, c config.OTLP) (sdkmetric.Exporter, error) {
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
 	if c.Protocol == "grpc" {
-		opts := []mg.Option{mg.WithEndpoint(c.Endpoint), mg.WithHeaders(c.Headers), mg.WithTimeout(3 * time.Second), mg.WithTLSCredentials(credentials.NewTLS(tlsConfig))}
+		opts := []mg.Option{
+			mg.WithEndpoint(c.Endpoint),
+			mg.WithHeaders(c.Headers),
+			mg.WithTimeout(exportTimeout),
+			mg.WithTLSCredentials(credentials.NewTLS(tlsConfig)),
+		}
 		if c.Insecure {
 			opts = append(opts, mg.WithTLSCredentials(insecure.NewCredentials()))
 		}
@@ -118,7 +153,11 @@ func metricExporter(ctx context.Context, c config.OTLP) (sdkmetric.Exporter, err
 	if c.Insecure {
 		scheme = "http://"
 	}
-	opts := []mh.Option{mh.WithEndpointURL(scheme + c.Endpoint + "/v1/metrics"), mh.WithHeaders(c.Headers), mh.WithTimeout(3 * time.Second)}
+	opts := []mh.Option{
+		mh.WithEndpointURL(scheme + c.Endpoint + "/v1/metrics"),
+		mh.WithHeaders(c.Headers),
+		mh.WithTimeout(exportTimeout),
+	}
 	if !c.Insecure {
 		opts = append(opts, mh.WithTLSClientConfig(tlsConfig))
 	}

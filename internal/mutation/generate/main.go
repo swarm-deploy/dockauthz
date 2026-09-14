@@ -21,7 +21,15 @@ type generator struct {
 }
 
 func main() {
-	pkgs, err := packages.Load(&packages.Config{Mode: packages.NeedName | packages.NeedTypes | packages.NeedImports | packages.NeedDeps}, "github.com/moby/moby/api/types/swarm")
+	pkgs, err := packages.Load(
+		&packages.Config{
+			Mode: packages.NeedName |
+				packages.NeedTypes |
+				packages.NeedImports |
+				packages.NeedDeps,
+		},
+		"github.com/moby/moby/api/types/swarm",
+	)
 	if err != nil || packages.PrintErrors(pkgs) > 0 {
 		panic("cannot load Docker types")
 	}
@@ -45,7 +53,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	if err := os.WriteFile("equal_generated.go", formatted, 0644); err != nil {
+	if err := os.WriteFile("equal_generated.go", formatted, 0600); err != nil {
 		panic(err)
 	}
 }
@@ -87,9 +95,20 @@ func (g *generator) equal(t types.Type) string {
 	case *types.Pointer:
 		fmt.Fprintf(&b, "if a == nil || b == nil { return a == b }; return %s(*a,*b)\n", g.equal(u.Elem()))
 	case *types.Slice:
-		fmt.Fprintf(&b, "if (a == nil) != (b == nil) || len(a) != len(b) { return false }; for i := range a { if !%s(a[i], b[i]) { return false } }; return true\n", g.equal(u.Elem()))
+		fmt.Fprintf(
+			&b,
+			"if (a == nil) != (b == nil) || len(a) != len(b) { return false }; "+
+				"for i := range a { if !%s(a[i], b[i]) { return false } }; return true\n",
+			g.equal(u.Elem()),
+		)
 	case *types.Map:
-		fmt.Fprintf(&b, "if (a == nil) != (b == nil) || len(a) != len(b) { return false }; for k,v := range a { other,ok := b[k]; if !ok || !%s(v,other) { return false } }; return true\n", g.equal(u.Elem()))
+		fmt.Fprintf(
+			&b,
+			"if (a == nil) != (b == nil) || len(a) != len(b) { return false }; "+
+				"for k,v := range a { other,ok := b[k]; "+
+				"if !ok || !%s(v,other) { return false } }; return true\n",
+			g.equal(u.Elem()),
+		)
 	case *types.Array:
 		fmt.Fprintf(&b, "for i := range a { if !%s(a[i],b[i]) { return false } }; return true\n", g.equal(u.Elem()))
 	case *types.Struct:

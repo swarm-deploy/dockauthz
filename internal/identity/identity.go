@@ -3,6 +3,7 @@ package identity
 
 import (
 	"errors"
+
 	"github.com/docker/go-plugins-helpers/authorization"
 )
 

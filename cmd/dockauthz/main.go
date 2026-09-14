@@ -21,6 +21,8 @@ import (
 
 var version = "dev"
 
+const shutdownTimeout = 8 * time.Second
+
 func main() {
 	slog.SetDefault(audit.NewLogger(os.Stdout))
 	if err := run(); err != nil {
@@ -46,9 +48,9 @@ func run() error {
 		return err
 	}
 	defer func() {
-		shutdown, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+		shutdown, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 		defer cancel()
-		if err := tel.Shutdown(shutdown); err != nil {
+		if shutdownErr := tel.Shutdown(shutdown); shutdownErr != nil {
 			slog.ErrorContext(shutdown, "telemetry shutdown failed")
 		}
 	}()

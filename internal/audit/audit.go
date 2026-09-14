@@ -3,9 +3,10 @@ package audit
 
 import (
 	"context"
-	"go.opentelemetry.io/otel/trace"
 	"io"
 	"log/slog"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
 type handler struct{ next slog.Handler }

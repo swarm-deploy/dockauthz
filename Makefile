@@ -35,3 +35,6 @@ plugin-package: plugin-rootfs
 
 plugin-create: plugin-rootfs
 	docker plugin create $(PLUGIN_NAME) ./plugin
+
+lint:
+	golangci-lint run

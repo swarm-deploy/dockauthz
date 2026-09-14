@@ -36,7 +36,13 @@ func New(reader dockerapi.Reader, observer *telemetry.Observer) *Evaluator {
 }
 
 // Evaluate never merges constraints from separate matching permissions.
-func (e *Evaluator) Evaluate(ctx context.Context, permissions []config.Permission, op operation.Operation, body []byte, headers map[string]string) Result {
+func (e *Evaluator) Evaluate(
+	ctx context.Context,
+	permissions []config.Permission,
+	op operation.Operation,
+	body []byte,
+	headers map[string]string,
+) Result {
 	ctx, span := e.observer.Start(ctx, "dockauthz.policy.evaluate")
 	defer span.End()
 	result := Result{Reason: "no matching permission"}
@@ -69,8 +75,8 @@ func (e *Evaluator) permission(ctx context.Context, p config.Permission, op oper
 			return Result{Reason: "state constraints require a canonical resource ID", ErrorType: "policy"}
 		}
 		if op.Resource == operation.ResourceService && op.Action == operation.ActionUpdate {
-			version, err := strconv.ParseUint(op.Query.Get("version"), 10, 64)
-			if err != nil || version != state.Version {
+			version, parseErr := strconv.ParseUint(op.Query.Get("version"), 10, 64)
+			if parseErr != nil || version != state.Version {
 				return Result{Reason: "service version does not match inspected state", ErrorType: "policy"}
 			}
 		}
@@ -81,18 +87,20 @@ func (e *Evaluator) permission(ctx context.Context, p config.Permission, op oper
 	if p.Request != nil {
 		var labels map[string]string
 		switch op.Resource {
-		case "service":
+		case operation.ResourceService:
 			var spec swarm.ServiceSpec
 			if err := specjson.Decode(body, &spec); err != nil {
 				return Result{Reason: err.Error(), ErrorType: "policy"}
 			}
 			labels = spec.Labels
-		case "secret":
+		case operation.ResourceSecret:
 			var spec swarm.SecretSpec
 			if err := specjson.Decode(body, &spec); err != nil {
 				return Result{Reason: err.Error(), ErrorType: "policy"}
 			}
 			labels = spec.Labels
+		case operation.ResourceUnknown, operation.ResourceTask, operation.ResourceNode:
+			return Result{Reason: "unsupported request constraint", ErrorType: "policy"}
 		default:
 			return Result{Reason: "unsupported request constraint", ErrorType: "policy"}
 		}
@@ -104,7 +112,11 @@ func (e *Evaluator) permission(ctx context.Context, p config.Permission, op oper
 		if state.ServiceSpec == nil {
 			return Result{Reason: "missing current service spec", ErrorType: "mutation"}
 		}
-		_, span := e.observer.Start(ctx, "dockauthz.mutation.validate", attribute.StringSlice("dockauthz.mutation.allowed_fields", p.Mutation.Only))
+		_, span := e.observer.Start(
+			ctx,
+			"dockauthz.mutation.validate",
+			attribute.StringSlice("dockauthz.mutation.allowed_fields", p.Mutation.Only),
+		)
 		err := mutation.Validate(*state.ServiceSpec, body, p.Mutation.Only)
 		span.End()
 		if err != nil {

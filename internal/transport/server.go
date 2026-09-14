@@ -20,6 +20,11 @@ import (
 )
 
 const maxEnvelopeSize = 16 << 20
+const (
+	startupTimeout      = 5 * time.Second
+	readinessInterval   = 20 * time.Millisecond
+	serveShutdownTimout = 10 * time.Second
+)
 
 type Server struct {
 	plugin *authz.Plugin
@@ -49,7 +54,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	deny := func() {
 		_ = json.NewEncoder(w).Encode(authorization.Response{Allow: false, Msg: "invalid authorization envelope"})
 	}
-	if r.Method != http.MethodPost || (r.URL.Path != "/"+authorization.AuthZApiRequest && r.URL.Path != "/"+authorization.AuthZApiResponse) {
+	if r.Method != http.MethodPost ||
+		(r.URL.Path != "/"+authorization.AuthZApiRequest &&
+			r.URL.Path != "/"+authorization.AuthZApiResponse) {
 		w.WriteHeader(http.StatusNotFound)
 		deny()
 		return
@@ -89,7 +96,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			deny()
 			return
 		}
-		wire.Request.RequestPeerCertificates = append(wire.Request.RequestPeerCertificates, (*authorization.PeerCertificate)(cert))
+		wire.RequestPeerCertificates = append(wire.RequestPeerCertificates, (*authorization.PeerCertificate)(cert))
 	}
 	ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
 	var response authorization.Response
@@ -112,13 +119,18 @@ func (s *Server) ServeUnix(ctx context.Context, socket string) error {
 	done := make(chan error, 1)
 	go func() { done <- h.ServeUnix(socket, 0) }()
 	dialer := net.Dialer{Timeout: time.Second}
-	client := &http.Client{Timeout: time.Second, Transport: &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-		return dialer.DialContext(ctx, "unix", socket)
-	}}}
+	client := &http.Client{
+		Timeout: time.Second,
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+				return dialer.DialContext(ctx, "unix", socket)
+			},
+		},
+	}
 	defer client.CloseIdleConnections()
-	deadline := time.NewTimer(5 * time.Second)
+	deadline := time.NewTimer(startupTimeout)
 	defer deadline.Stop()
-	tick := time.NewTicker(20 * time.Millisecond)
+	tick := time.NewTicker(readinessInterval)
 	defer tick.Stop()
 	var server *http.Server
 	for server == nil {
@@ -130,7 +142,11 @@ func (s *Server) ServeUnix(ctx context.Context, socket string) error {
 		case <-deadline.C:
 			return errors.New("plugin socket startup timed out")
 		case <-tick.C:
-			resp, err := client.Get("http://plugin/dockauthz.ready")
+			req, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, "http://plugin/dockauthz.ready", nil)
+			if reqErr != nil {
+				return errors.New("cannot construct readiness request")
+			}
+			resp, err := client.Do(req)
 			if err == nil {
 				_ = resp.Body.Close()
 			}
@@ -141,7 +157,7 @@ func (s *Server) ServeUnix(ctx context.Context, socket string) error {
 	case err := <-done:
 		return err
 	case <-ctx.Done():
-		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		shutdown, cancel := context.WithTimeout(context.Background(), serveShutdownTimout)
 		defer cancel()
 		if err := server.Shutdown(shutdown); err != nil {
 			_ = server.Close()

@@ -20,6 +20,13 @@ import (
 const MaxSize = 1 << 20
 const DefaultPath = "/etc/dockauthz/config.yaml"
 
+const (
+	actionCreate  = "create"
+	actionDelete  = "delete"
+	actionInspect = "inspect"
+	actionUpdate  = "update"
+)
+
 type Config struct {
 	// Authentication defines the mandatory unauthenticated-request policy.
 	Authentication Authentication `yaml:"authentication"`
@@ -200,6 +207,8 @@ func validateScalarTypes(n *yaml.Node, path string) error {
 		if n.Tag != expected {
 			return errors.New("configuration scalar has the wrong YAML type")
 		}
+	case yaml.AliasNode:
+		return errors.New("YAML anchors, aliases and explicit tags are forbidden")
 	}
 	return nil
 }
@@ -246,13 +255,16 @@ func (c *Config) Validate() error {
 					if !operation.Supports(operation.Resource(actual), operation.Action(action)) {
 						return errors.New("unsupported permission action for resource")
 					}
-					if permission.Selector != nil && action != "inspect" && action != "update" && action != "delete" {
+					if permission.Selector != nil &&
+						action != actionInspect &&
+						action != actionUpdate &&
+						action != actionDelete {
 						return errors.New("selector requires an existing individual resource")
 					}
-					if permission.Request != nil && action != "create" && action != "update" {
+					if permission.Request != nil && action != actionCreate && action != actionUpdate {
 						return errors.New("request requires create or update")
 					}
-					if permission.Mutation != nil && (actual != "service" || action != "update") {
+					if permission.Mutation != nil && (actual != "service" || action != actionUpdate) {
 						return errors.New("mutation is supported only for service.update")
 					}
 				}
@@ -297,7 +309,10 @@ func (t *Telemetry) Validate() error {
 		ratio := 1.0
 		t.Traces.SampleRatio = &ratio
 	}
-	if math.IsNaN(*t.Traces.SampleRatio) || math.IsInf(*t.Traces.SampleRatio, 0) || *t.Traces.SampleRatio < 0 || *t.Traces.SampleRatio > 1 {
+	if math.IsNaN(*t.Traces.SampleRatio) ||
+		math.IsInf(*t.Traces.SampleRatio, 0) ||
+		*t.Traces.SampleRatio < 0 ||
+		*t.Traces.SampleRatio > 1 {
 		return errors.New("telemetry sampleRatio must be between 0 and 1")
 	}
 	if t.Metrics.ExportInterval == "" {
@@ -316,9 +331,14 @@ func (t *Telemetry) Validate() error {
 		}
 	}
 	if t.OTLP.Endpoint != "" {
-		host, port, err := net.SplitHostPort(t.OTLP.Endpoint)
+		host, port, splitErr := net.SplitHostPort(t.OTLP.Endpoint)
 		n, parseErr := strconv.Atoi(port)
-		if err != nil || parseErr != nil || host == "" || n < 1 || n > 65535 || strings.ContainsAny(host, "/@?# \r\n\t") {
+		if splitErr != nil ||
+			parseErr != nil ||
+			host == "" ||
+			n < 1 ||
+			n > 65535 ||
+			strings.ContainsAny(host, "/@?# \r\n\t") {
 			return errors.New("telemetry endpoint must be host:port")
 		}
 	}

@@ -35,11 +35,24 @@ type Plugin struct {
 var _ authorization.Plugin = (*Plugin)(nil)
 
 // New validates the administrative policy before constructing the plugin.
-func New(cfg *config.Config, token *dockerapi.Token, evaluator *policy.Evaluator, observer *telemetry.Observer, logger *slog.Logger) (*Plugin, error) {
+func New(
+	cfg *config.Config,
+	token *dockerapi.Token,
+	evaluator *policy.Evaluator,
+	observer *telemetry.Observer,
+	logger *slog.Logger,
+) (*Plugin, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	p := &Plugin{unidentified: cfg.Authentication.Unidentified, clients: make(map[string]client), token: token, policy: evaluator, observer: observer, logger: logger}
+	p := &Plugin{
+		unidentified: cfg.Authentication.Unidentified,
+		clients:      make(map[string]client),
+		token:        token,
+		policy:       evaluator,
+		observer:     observer,
+		logger:       logger,
+	}
 	for name, c := range cfg.Clients {
 		p.clients[c.Identity.Certificate.CommonName] = client{name: name, permissions: c.Permissions}
 	}
@@ -87,7 +100,14 @@ func (p *Plugin) Authorize(ctx context.Context, req authorization.Request) autho
 		if result.Allow {
 			decision = "allow"
 		}
-		span.SetAttributes(attribute.String("dockauthz.client", name), attribute.String("dockauthz.identity.auth_method", method), attribute.String("dockauthz.resource", string(op.Resource)), attribute.String("dockauthz.action", string(op.Action)), attribute.String("dockauthz.decision", decision), attribute.String("dockauthz.reason", result.Reason))
+		span.SetAttributes(
+			attribute.String("dockauthz.client", name),
+			attribute.String("dockauthz.identity.auth_method", method),
+			attribute.String("dockauthz.resource", string(op.Resource)),
+			attribute.String("dockauthz.action", string(op.Action)),
+			attribute.String("dockauthz.decision", decision),
+			attribute.String("dockauthz.reason", result.Reason),
+		)
 		p.observer.Decision(ctx, decision, name, string(op.Resource), string(op.Action), start)
 		if result.ErrorType != "" {
 			p.observer.Error(ctx, result.ErrorType)
@@ -95,7 +115,17 @@ func (p *Plugin) Authorize(ctx context.Context, req authorization.Request) autho
 		if internal {
 			p.observer.Internal(ctx, decision)
 		}
-		p.logger.InfoContext(ctx, "authorization decision", "client", name, "identity", cn, "resource", op.Resource, "resource_id", op.ID, "action", op.Action, "decision", decision, "reason", result.Reason)
+		p.logger.InfoContext(
+			ctx,
+			"authorization decision",
+			"client", name,
+			"identity", cn,
+			"resource", op.Resource,
+			"resource_id", op.ID,
+			"action", op.Action,
+			"decision", decision,
+			"reason", result.Reason,
+		)
 	}()
 	respond := func() authorization.Response { return authorization.Response{Allow: result.Allow, Msg: result.Reason} }
 	if present, valid := p.token.Check(req.RequestHeaders); present {

@@ -44,24 +44,35 @@ type output struct {
 	mode os.FileMode
 }
 
+const (
+	certKindCA     = "ca"
+	certKindServer = "server"
+	certKindClient = "client"
+	defaultDays    = 365
+	defaultCADays  = 3650
+	maxDays        = 36500
+	serialBits     = 159
+	keyBits        = 3072
+)
+
 // Generate writes certificates with mode 0644 and private keys with mode 0600.
 func Generate(o Options) error {
-	if o.Kind != "ca" && o.Kind != "server" && o.Kind != "client" {
+	if o.Kind != certKindCA && o.Kind != certKindServer && o.Kind != certKindClient {
 		return errors.New("certificate kind must be ca, server or client")
 	}
 	if strings.TrimSpace(o.Name) == "" || o.Out == "" {
 		return errors.New("--name and --out are required")
 	}
 	if o.Days == 0 {
-		o.Days = 365
-		if o.Kind == "ca" {
-			o.Days = 3650
+		o.Days = defaultDays
+		if o.Kind == certKindCA {
+			o.Days = defaultCADays
 		}
 	}
-	if o.Days < 1 || o.Days > 36500 {
+	if o.Days < 1 || o.Days > maxDays {
 		return errors.New("--days must be between 1 and 36500")
 	}
-	if o.Kind == "server" && len(o.DNS)+len(o.IP) == 0 {
+	if o.Kind == certKindServer && len(o.DNS)+len(o.IP) == 0 {
 		return errors.New("server certificate requires at least one --dns or --ip SAN")
 	}
 	var ips []net.IP
@@ -78,14 +89,14 @@ func Generate(o Options) error {
 		}
 	}
 	certName, keyName := "cert.pem", "key.pem"
-	if o.Kind == "ca" {
+	if o.Kind == certKindCA {
 		certName, keyName = "ca.pem", "ca-key.pem"
 	}
-	if o.Kind == "server" {
+	if o.Kind == certKindServer {
 		certName, keyName = "server-cert.pem", "server-key.pem"
 	}
 	names := []string{certName, keyName}
-	if o.Kind != "ca" {
+	if o.Kind != certKindCA {
 		names = append(names, "ca.pem")
 	}
 	if !o.Force {
@@ -98,16 +109,23 @@ func Generate(o Options) error {
 		}
 	}
 	now := time.Now()
-	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 159))
+	serial, err := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), serialBits))
 	if err != nil {
 		return errors.New("cannot generate certificate serial")
 	}
 	serial.Add(serial, big.NewInt(1))
-	template := &x509.Certificate{SerialNumber: serial, Subject: pkix.Name{CommonName: o.Name}, NotBefore: now.Add(-5 * time.Minute), NotAfter: now.Add(time.Duration(o.Days) * 24 * time.Hour), BasicConstraintsValid: true, KeyUsage: x509.KeyUsageDigitalSignature}
+	template := &x509.Certificate{
+		SerialNumber:          serial,
+		Subject:               pkix.Name{CommonName: o.Name},
+		NotBefore:             now.Add(-5 * time.Minute),
+		NotAfter:              now.Add(time.Duration(o.Days) * 24 * time.Hour),
+		BasicConstraintsValid: true,
+		KeyUsage:              x509.KeyUsageDigitalSignature,
+	}
 	var parent *x509.Certificate
 	var signer *rsa.PrivateKey
 	var caPEM []byte
-	if o.Kind == "ca" {
+	if o.Kind == certKindCA {
 		template.IsCA = true
 		template.KeyUsage = x509.KeyUsageCertSign | x509.KeyUsageCRLSign
 		parent = template
@@ -119,7 +137,7 @@ func Generate(o Options) error {
 		if now.Before(parent.NotBefore) || template.NotAfter.After(parent.NotAfter) {
 			return errors.New("requested lifetime is outside CA validity")
 		}
-		if o.Kind == "server" {
+		if o.Kind == certKindServer {
 			template.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
 			template.DNSNames = o.DNS
 			template.IPAddresses = ips
@@ -128,11 +146,11 @@ func Generate(o Options) error {
 			template.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}
 		}
 	}
-	key, err := rsa.GenerateKey(rand.Reader, 3072)
+	key, err := rsa.GenerateKey(rand.Reader, keyBits)
 	if err != nil {
 		return errors.New("cannot generate RSA private key")
 	}
-	if o.Kind == "ca" {
+	if o.Kind == certKindCA {
 		signer = key
 	}
 	der, err := x509.CreateCertificate(rand.Reader, template, parent, &key.PublicKey, signer)
@@ -143,8 +161,11 @@ func Generate(o Options) error {
 	if err != nil {
 		return errors.New("cannot encode private key")
 	}
-	files := []output{{certName, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0644}, {keyName, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyDER}), 0600}}
-	if o.Kind != "ca" {
+	files := []output{
+		{certName, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0644},
+		{keyName, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyDER}), 0600},
+	}
+	if o.Kind != certKindCA {
 		files = append(files, output{"ca.pem", caPEM, 0644})
 	}
 	return writeBundle(o.Out, files, o.Force)
@@ -204,7 +225,7 @@ func validDNS(value string) bool {
 			return false
 		}
 		for _, c := range label {
-			if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-') {
+			if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && (c < '0' || c > '9') && c != '-' {
 				return false
 			}
 		}
