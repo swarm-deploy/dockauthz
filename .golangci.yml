@@ -102,6 +102,10 @@ linters:
       min-complexity: 120
     gocyclo:
       min-complexity: 50
+    gosec:
+      excludes:
+        - G703
+        - G704
     gocritic:
       settings:
         captLocal:

@@ -237,6 +237,11 @@ func writeBundle(dir string, files []output, force bool) error {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return errors.New("cannot create certificate directory")
 	}
+	for _, file := range files {
+		if file.name != filepath.Base(file.name) {
+			return errors.New("invalid certificate bundle filename")
+		}
+	}
 	var temps, created []string
 	defer func() {
 		for _, name := range temps {
