@@ -82,7 +82,7 @@ func TestInspect(t *testing.T) {
 			client.http.Transport.(*http.Transport).DialContext = func(ctx context.Context, _, _ string) (net.Conn, error) {
 				return (&net.Dialer{}).DialContext(ctx, "tcp", server.Listener.Addr().String())
 			}
-			state, err := client.Inspect(context.Background(), operation.Operation{Resource: tc.resource, ID: "abc", Version: "1.53"})
+			state, err := client.Inspect(context.Background(), operation.Operation{Resource: operation.Resource(tc.resource), ID: "abc", Version: "1.53"})
 			if tc.bad {
 				require.Error(t, err)
 			} else {
@@ -105,7 +105,7 @@ func TestInspectCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	start := time.Now()
-	_, err = client.Inspect(ctx, operation.Operation{Resource: "service", ID: "abc"})
+	_, err = client.Inspect(ctx, operation.Operation{Resource: operation.ResourceService, ID: "abc"})
 	require.Error(t, err)
 	assert.Less(t, time.Since(start), time.Second)
 }

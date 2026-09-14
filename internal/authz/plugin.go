@@ -72,13 +72,13 @@ func (p *Plugin) Authorize(ctx context.Context, req authorization.Request) autho
 	ctx, span := p.observer.Start(ctx, "dockauthz.authorize")
 	defer span.End()
 	name, cn, method := "unknown", "", "unknown"
-	op := operation.Operation{Resource: "unknown", Action: "unknown"}
+	op := operation.Operation{Resource: operation.ResourceUnknown, Action: operation.ActionUnknown}
 	result := policy.Result{Reason: "authorization denied"}
 	internal := false
 	defer func() {
 		// Early grants still receive normalized audit/metric dimensions when
 		// possible. Resolution here cannot change the already made decision.
-		if op.Resource == "unknown" {
+		if op.Resource == operation.ResourceUnknown {
 			if resolved, err := operation.Resolve(req.RequestMethod, req.RequestURI); err == nil {
 				op = resolved
 			}
@@ -87,8 +87,8 @@ func (p *Plugin) Authorize(ctx context.Context, req authorization.Request) autho
 		if result.Allow {
 			decision = "allow"
 		}
-		span.SetAttributes(attribute.String("dockauthz.client", name), attribute.String("dockauthz.identity.auth_method", method), attribute.String("dockauthz.resource", op.Resource), attribute.String("dockauthz.action", op.Action), attribute.String("dockauthz.decision", decision), attribute.String("dockauthz.reason", result.Reason))
-		p.observer.Decision(ctx, decision, name, op.Resource, op.Action, start)
+		span.SetAttributes(attribute.String("dockauthz.client", name), attribute.String("dockauthz.identity.auth_method", method), attribute.String("dockauthz.resource", string(op.Resource)), attribute.String("dockauthz.action", string(op.Action)), attribute.String("dockauthz.decision", decision), attribute.String("dockauthz.reason", result.Reason))
+		p.observer.Decision(ctx, decision, name, string(op.Resource), string(op.Action), start)
 		if result.ErrorType != "" {
 			p.observer.Error(ctx, result.ErrorType)
 		}
@@ -106,7 +106,7 @@ func (p *Plugin) Authorize(ctx context.Context, req authorization.Request) autho
 		if err == nil {
 			op = resolved
 		}
-		if valid && err == nil && op.Action == "inspect" && len(op.Query) == 0 {
+		if valid && err == nil && op.Action == operation.ActionInspect && len(op.Query) == 0 {
 			result = policy.Result{Allow: true, Reason: "internal inspect"}
 		} else {
 			result = policy.Result{Reason: "invalid internal request", ErrorType: "internal"}
@@ -138,13 +138,13 @@ func (p *Plugin) Authorize(ctx context.Context, req authorization.Request) autho
 	}
 	op, err = operation.Resolve(req.RequestMethod, req.RequestURI)
 	if err != nil {
-		op = operation.Operation{Resource: "unknown", Action: "unknown"}
+		op = operation.Operation{Resource: operation.ResourceUnknown, Action: operation.ActionUnknown}
 		result = policy.Result{Reason: "unknown or invalid Docker operation", ErrorType: "resolver"}
 		return respond()
 	}
 	var matching []config.Permission
-	for _, resource := range []string{op.Resource, "*"} {
-		for _, action := range []string{op.Action, "*"} {
+	for _, resource := range []string{string(op.Resource), "*"} {
+		for _, action := range []string{string(op.Action), "*"} {
 			if permission, ok := c.permissions[resource][action]; ok {
 				matching = append(matching, permission)
 			}

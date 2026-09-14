@@ -66,15 +66,15 @@ func (c *Client) Close() { c.http.CloseIdleConnections() }
 // Inspect retrieves the same API representation used by the external operation.
 func (c *Client) Inspect(ctx context.Context, op operation.Operation) (snapshot Snapshot, err error) {
 	start := time.Now()
-	ctx, span := c.observer.Start(ctx, "dockauthz.docker.inspect", attribute.String("dockauthz.resource", op.Resource))
+	ctx, span := c.observer.Start(ctx, "dockauthz.docker.inspect", attribute.String("dockauthz.resource", string(op.Resource)))
 	defer span.End()
-	defer func() { c.observer.Lookup(ctx, op.Resource, start, err) }()
-	path := "/" + op.Resource + "s/" + op.ID
+	defer func() { c.observer.Lookup(ctx, string(op.Resource), start, err) }()
+	path := "/" + string(op.Resource) + "s/" + op.ID
 	if op.Version != "" {
 		path = "/v" + op.Version + path
 	}
 	resolved, err := operation.Resolve("GET", path)
-	if err != nil || resolved.Action != "inspect" {
+	if err != nil || resolved.Action != operation.ActionInspect {
 		return Snapshot{}, errors.New("invalid inspect operation")
 	}
 	req, err := http.NewRequestWithContext(ctx, "GET", "http://docker"+path, nil)

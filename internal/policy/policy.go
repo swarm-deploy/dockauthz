@@ -53,7 +53,7 @@ func (e *Evaluator) permission(ctx context.Context, p config.Permission, op oper
 	if p.Unconditional() {
 		return Result{Allow: true, Reason: "permission granted"}
 	}
-	if op.Resource == "service" && op.Action == "update" && !safeUpdate(op, p, headers) {
+	if op.Resource == operation.ResourceService && op.Action == operation.ActionUpdate && !safeUpdate(op, p, headers) {
 		return Result{Reason: "unsafe or unsupported service update options", ErrorType: "policy"}
 	}
 	var state dockerapi.Snapshot
@@ -68,7 +68,7 @@ func (e *Evaluator) permission(ctx context.Context, p config.Permission, op oper
 		if state.ID != op.ID {
 			return Result{Reason: "state constraints require a canonical resource ID", ErrorType: "policy"}
 		}
-		if op.Resource == "service" && op.Action == "update" {
+		if op.Resource == operation.ResourceService && op.Action == operation.ActionUpdate {
 			version, err := strconv.ParseUint(op.Query.Get("version"), 10, 64)
 			if err != nil || version != state.Version {
 				return Result{Reason: "service version does not match inspected state", ErrorType: "policy"}

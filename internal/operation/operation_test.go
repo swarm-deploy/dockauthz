@@ -27,8 +27,8 @@ func TestResolve(t *testing.T) {
 			t.Run(tc.method+prefix+tc.path, func(t *testing.T) {
 				op, err := Resolve(tc.method, prefix+tc.path)
 				require.NoError(t, err)
-				assert.Equal(t, tc.resource, op.Resource)
-				assert.Equal(t, tc.action, op.Action)
+				assert.Equal(t, tc.resource, string(op.Resource))
+				assert.Equal(t, tc.action, string(op.Action))
 				assert.Equal(t, tc.id, op.ID)
 				if prefix != "" {
 					assert.Equal(t, "1.53", op.Version)

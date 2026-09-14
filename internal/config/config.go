@@ -220,7 +220,7 @@ func (c *Config) Validate() error {
 		}
 		cns[cn] = true
 		for resource, actions := range client.Permissions {
-			if resource != "*" && !operation.Supports(resource, "inspect") {
+			if resource != "*" && !operation.Supports(operation.Resource(resource), operation.ActionInspect) {
 				return errors.New("unsupported permission resource")
 			}
 			for action, permission := range actions {
@@ -234,7 +234,7 @@ func (c *Config) Validate() error {
 				if resource == "*" {
 					resources = nil
 					for _, candidate := range []string{"service", "secret", "task", "node"} {
-						if operation.Supports(candidate, action) {
+						if operation.Supports(operation.Resource(candidate), operation.Action(action)) {
 							resources = append(resources, candidate)
 						}
 					}
@@ -243,7 +243,7 @@ func (c *Config) Validate() error {
 					return errors.New("unsupported permission action")
 				}
 				for _, actual := range resources {
-					if !operation.Supports(actual, action) {
+					if !operation.Supports(operation.Resource(actual), operation.Action(action)) {
 						return errors.New("unsupported permission action for resource")
 					}
 					if permission.Selector != nil && action != "inspect" && action != "update" && action != "delete" {

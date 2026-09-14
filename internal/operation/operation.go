@@ -10,9 +10,9 @@ import (
 
 type Operation struct {
 	// Resource is a singular, supported Docker resource name.
-	Resource string
+	Resource Resource
 	// Action is the normalized API action.
-	Action string
+	Action Action
 	// ID is the resource identifier or name, when present.
 	ID string
 	// Version is the API version without its leading v, or empty.
@@ -21,18 +21,41 @@ type Operation struct {
 	Query url.Values
 }
 
+// Resource is a normalized Docker API resource.
+type Resource string
+
+const (
+	ResourceUnknown Resource = "unknown"
+	ResourceService Resource = "service"
+	ResourceSecret  Resource = "secret"
+	ResourceTask    Resource = "task"
+	ResourceNode    Resource = "node"
+)
+
+// Action is a normalized operation performed on a Docker resource.
+type Action string
+
+const (
+	ActionUnknown Action = "unknown"
+	ActionList    Action = "list"
+	ActionInspect Action = "inspect"
+	ActionCreate  Action = "create"
+	ActionUpdate  Action = "update"
+	ActionDelete  Action = "delete"
+)
+
 var apiVersion = regexp.MustCompile(`^v[1-9][0-9]*\.[0-9]+$`)
 var identifier = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
 
 // Supports reports the explicitly implemented resource/action combinations.
-func Supports(resource, action string) bool {
+func Supports(resource Resource, action Action) bool {
 	switch resource {
-	case "service":
-		return action == "list" || action == "inspect" || action == "create" || action == "update" || action == "delete"
-	case "secret":
-		return action == "list" || action == "inspect" || action == "create" || action == "delete"
-	case "task", "node":
-		return action == "list" || action == "inspect"
+	case ResourceService:
+		return action == ActionList || action == ActionInspect || action == ActionCreate || action == ActionUpdate || action == ActionDelete
+	case ResourceSecret:
+		return action == ActionList || action == ActionInspect || action == ActionCreate || action == ActionDelete
+	case ResourceTask, ResourceNode:
+		return action == ActionList || action == ActionInspect
 	}
 	return false
 }
@@ -59,31 +82,31 @@ func Resolve(method, uri string) (Operation, error) {
 	}
 	switch parts[0] {
 	case "services":
-		op.Resource = "service"
+		op.Resource = ResourceService
 	case "secrets":
-		op.Resource = "secret"
+		op.Resource = ResourceSecret
 	case "tasks":
-		op.Resource = "task"
+		op.Resource = ResourceTask
 	case "nodes":
-		op.Resource = "node"
+		op.Resource = ResourceNode
 	default:
 		return Operation{}, bad
 	}
 	switch {
 	case len(parts) == 1 && method == "GET":
-		op.Action = "list"
+		op.Action = ActionList
 	case len(parts) == 2 && parts[1] == "create" && method == "POST":
-		op.Action = "create"
+		op.Action = ActionCreate
 	case len(parts) == 2 && method == "GET":
-		op.Action, op.ID = "inspect", parts[1]
+		op.Action, op.ID = ActionInspect, parts[1]
 	case len(parts) == 2 && method == "DELETE":
-		op.Action, op.ID = "delete", parts[1]
+		op.Action, op.ID = ActionDelete, parts[1]
 	case len(parts) == 3 && parts[2] == "update" && method == "POST":
-		op.Action, op.ID = "update", parts[1]
+		op.Action, op.ID = ActionUpdate, parts[1]
 	default:
 		return Operation{}, bad
 	}
-	if !Supports(op.Resource, op.Action) || (op.Action != "list" && op.Action != "create" && !identifier.MatchString(op.ID)) {
+	if !Supports(op.Resource, op.Action) || (op.Action != ActionList && op.Action != ActionCreate && !identifier.MatchString(op.ID)) {
 		return Operation{}, bad
 	}
 	return op, nil
