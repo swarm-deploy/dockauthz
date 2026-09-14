@@ -26,8 +26,8 @@ const LookupTimeout = 5 * time.Second
 const maxResponseSize = 8 << 20
 
 const (
-	maxIdleConns     = 16
-	idleConnTimeout  = 30 * time.Second
+	maxIdleConns      = 16
+	idleConnTimeout   = 30 * time.Second
 	forbiddenRedirect = "docker redirects forbidden"
 )
 
