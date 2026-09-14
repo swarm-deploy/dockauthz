@@ -53,8 +53,8 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	if err := os.WriteFile("equal_generated.go", formatted, 0600); err != nil {
-		panic(err)
+	if writeErr := os.WriteFile("equal_generated.go", formatted, 0600); writeErr != nil {
+		panic(writeErr)
 	}
 }
 

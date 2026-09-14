@@ -1,0 +1,22 @@
+authentication:
+  unidentified: allow
+
+clients:
+  admin:
+    identity:
+      certificate:
+        commonName: e2e-admin
+    permissions:
+      "*":
+        "*": {}
+  mutator:
+    identity:
+      certificate:
+        commonName: e2e-mutator
+    permissions:
+      service:
+        list: {}
+        inspect: {}
+        update:
+          mutation:
+            only: [container.secrets]

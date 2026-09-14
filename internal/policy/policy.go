@@ -55,7 +55,13 @@ func (e *Evaluator) Evaluate(
 	return result
 }
 
-func (e *Evaluator) permission(ctx context.Context, p config.Permission, op operation.Operation, body []byte, headers map[string]string) Result {
+func (e *Evaluator) permission(
+	ctx context.Context,
+	p config.Permission,
+	op operation.Operation,
+	body []byte,
+	headers map[string]string,
+) Result {
 	if p.Unconditional() {
 		return Result{Allow: true, Reason: "permission granted"}
 	}
