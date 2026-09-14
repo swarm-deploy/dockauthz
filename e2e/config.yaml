@@ -1,0 +1,4 @@
+authentication:
+  unidentified: allow
+
+clients: {}

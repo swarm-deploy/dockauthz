@@ -5,7 +5,7 @@ PLUGIN_NAME ?= dockauthz:dev
 CA_BUNDLE ?= $(firstword $(wildcard /etc/ssl/certs/ca-certificates.crt /etc/ssl/cert.pem))
 LDFLAGS = -s -w -X main.version=$(VERSION)
 
-.PHONY: build test vet generate plugin-rootfs plugin-package plugin-create
+.PHONY: build test vet generate plugin-rootfs plugin-package plugin-create e2e
 
 build:
 	mkdir -p bin
@@ -38,3 +38,6 @@ plugin-create: plugin-rootfs
 
 lint:
 	golangci-lint run
+
+e2e:
+	./e2e/run.sh

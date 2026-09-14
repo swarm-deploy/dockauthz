@@ -45,3 +45,19 @@ jobs:
 
       - name: Run tests
         run: make test
+
+  e2e:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@a37ce9120846195fa4ece8f58b268e6043cb2f26 # v3
+
+      - name: Set up Go
+        uses: actions/setup-go@7b8cf10d4e4a01d4992d18a89f4d7dc5a3e6d6f4 # v4; action page: <https://github.com/actions/setup-go>
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run e2e tests
+        run: make e2e
